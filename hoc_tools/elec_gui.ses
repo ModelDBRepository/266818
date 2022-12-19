@@ -1,0 +1,46 @@
+objectvar save_window_, rvp_
+objectvar scene_vector_[4]
+objectvar ocbox_, ocbox_list_, scene_, scene_list_
+{ocbox_list_ = new List()  scene_list_ = new List()}
+
+//Begin I/V Clamp Electrode
+{
+load_file("electrod.hoc")
+}
+{
+ocbox_=new Electrode(0)
+execute("can_locate=1 sec=\"Myocite[0].cell\" xloc=0.5 locate(0)", ocbox_)
+execute("vc.dur[0]=0.1 vc.amp[0]=-65", ocbox_)
+execute("vc.dur[1]=2.5 vc.amp[1]=10", ocbox_)
+execute("vc.dur[2]=100 vc.amp[2]=-65", ocbox_)
+execute("stim.del=200 stim.dur=0.5 stim.amp=30", ocbox_)
+execute("vcsteps=5", ocbox_)
+execute("samp=stim.amp  store_vclamp() glyph()", ocbox_)
+ocbox_ = ocbox_.v1
+ocbox_.map("I/V Clamp Electrode", 599, 713, 265.92, 412.8)
+}
+objref ocbox_
+//End I/V Clamp Electrode
+
+
+//Begin I/V Clamp Electrode
+{
+load_file("electrod.hoc")
+}
+{
+ocbox_=new Electrode(0)
+execute("can_locate=1 sec=\"Myocite[0].cell\" xloc=0.5 locate(0)", ocbox_)
+execute("vc.dur[0]=0.1 vc.amp[0]=-65", ocbox_)
+execute("vc.dur[1]=2.5 vc.amp[1]=10", ocbox_)
+execute("vc.dur[2]=100 vc.amp[2]=-65", ocbox_)
+execute("stim.del=100 stim.dur=0.5 stim.amp=30", ocbox_)
+execute("vcsteps=5", ocbox_)
+execute("samp=stim.amp  store_vclamp() glyph()", ocbox_)
+ocbox_ = ocbox_.v1
+ocbox_.map("I/V Clamp Electrode", 320, 711, 265.92, 412.8)
+}
+objref ocbox_
+//End I/V Clamp Electrode
+
+objectvar scene_vector_[1]
+{doNotify()}

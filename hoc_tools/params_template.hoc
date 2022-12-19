@@ -1,0 +1,81 @@
+begintemplate Params
+public g_Kss, g_Kti, 	K1_leak_p_Kti, 	K1_KIR_p_Kti, 	K1_slope_Kti, 	g_NAbg, 	g_Kto_f_Kto_f, 	g_Kto_s_Ksto, 	g_Kur_Kurdr, 	g_Kr_Krdr, 	g_Ks_Ksdr, 	gcabar_Ca_L, 	Vshift_Ca_L, 	gnabar_NAV_withF, 	gnabar_NAV_noF
+public names, values, type
+public get, set_mech, set_myocyte, save_param_names, save_param_values
+objref names, values
+strdef tmp_string, filename, type
+
+proc init () {
+    type = $s1
+    names = new List()
+    values = new Vector()
+    load_param_names(type)
+    load_param_values(type)
+}
+
+func get() {local i
+    for i = 0, names.count()-1 {
+	if (strcmp(names.o(i).s,$s1)) {
+	    return values.x(i)
+	}
+    }
+}
+
+proc set_mech() { local i,value
+    //Arguments: $o1 mech, $2 param name in mech
+    for i = 0, names.count()-1 {
+	if (strcmp(names.o(i).s,$s2)) {
+	    value = values.x(i)
+	}
+    }
+    sprint(tmp_string,"$o1.cell.%s = %g",$s2, value)
+    execute(tmp_string, this)
+}
+
+proc set_myocyte() {
+    $o1.type = type
+    for i = 0, names.count()-1 {
+	sprint(tmp_string,"cell.%s = %g", names.o(i).s, values.x(i))
+	execute(tmp_string, $o1)
+    }
+}
+
+proc save_param_values() {localobj file
+    sprint(filename, "myo_mech_values_%s.dat", type)
+    file = new File()
+    file.wopen(filename)
+    values.printf(file, "%5.4e\n")
+    file.close()
+}
+
+proc load_param_values() {localobj file
+    sprint(filename, "myo_mech_values_%s.dat", type)
+    file = new File()
+    file.ropen(filename)
+    values.scanf(file)
+    file.close()
+}
+
+proc load_param_names() {localobj file
+    sprint(filename, "myo_mech_names_%s.dat", type)
+    file = new File()
+    file.ropen(filename)
+    file.scanstr(tmp_string)
+    while (file.eof()==0) {
+	printf(tmp_string)
+	names.append(new String(tmp_string))
+	file.scanstr(tmp_string)
+    }
+    file.close()
+}
+proc save_param_names() {localobj file
+    sprint(filename, "myo_mech_names_%s.dat", type)
+    file = new File()
+    file.wopen(filename)
+    for i = 0, names.count()-1 {
+    	file.printf("%s\n", names.o(i).s)
+    }
+    file.close()
+}
+
+endtemplate Params

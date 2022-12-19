@@ -1,0 +1,27 @@
+objref colors
+colors = new Vector()
+colors.append(1) // Black
+colors.append(3) // Blue
+colors.append(2) // Red
+colors.append(4) // Green
+colors.append(9) // Gray
+colors.append(1) // Black
+colors.append(3) // Blue
+colors.append(2) // Red
+colors.append(4) // Green
+colors.append(9) // Gray
+colors.append(1) // Black
+colors.append(3) // Blue
+colors.append(2) // Red
+colors.append(4) // Green
+colors.append(9) // Gray
+colors.append(1) // Black
+colors.append(3) // Blue
+colors.append(2) // Red
+colors.append(4) // Green
+colors.append(9) // Gray
+colors.append(1) // Black
+colors.append(3) // Blue
+colors.append(2) // Red
+colors.append(4) // Green
+colors.append(9) // Gray

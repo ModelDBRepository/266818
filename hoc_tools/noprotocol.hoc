@@ -1,0 +1,115 @@
+begintemplate Noprot
+external WindowGroup, WindowGroupItem, noprot_myo, nrncontrolmenu
+external set_ion_conc, set_env_cond, stdinit, run, tstop
+public myocyte, SEC, V_plot, INa_plot, ICa_plot, INa_states_plot
+public gui_create, plot_holder, nav_states
+objref this, nil, plot_holder
+objref myocyte, SEC, xsource, ysource, xdest, ramp, base_values, dur_values
+objref V_plot, INa_plot, ICa_plot, INa_states_plot, pwm, gui
+strdef tmp_string, filename, label
+
+proc init() {
+    create_myocyte(myocyte, $o1)
+    pwm = $o2
+    access myocyte.cell
+}
+
+proc gui_create() {
+    nrncontrolmenu()
+    xpanel("Protocol free Model",0)
+    xbutton("Run", "noprot_run()")
+    xbutton("Break", "break_loop()")
+    xbutton("Access this model", "access noprot_myo.myocyte.cell")
+    
+    xbutton("Plot V", "plots(\"V\")")
+    xbutton("Plot INa", "plots(\"INa\")")
+    xbutton("Plot gNa", "plots(\"gNa\")")
+    xbutton("Plot ICa", "plots(\"ICa\")")
+    xbutton("Plot INa States", "plots(\"Nav_states\")")
+    xbutton("Plot All", "plots(\"all\")")
+    xbutton("Close All plots", "close_all()")
+    // xbutton("Hide All", "hide_all(\"myocyte\",myocyte_V_plot,myocyte_INa_plot,myocyte_ICa_plot,myocyte_INa_states_plot)")
+    // xbutton("Show All", "show_all(\"myocyte\",myocyte_V_plot,myocyte_INa_plot,myocyte_ICa_plot,myocyte_INa_states_plot)")
+    xbutton("Delete model","delete_this()")
+    xpanel()
+    gui = new WindowGroupItem(pwm.count()-1, pwm.name(pwm.count()-1))
+}
+
+proc plots() {
+    if (plot_holder == nil) {plot_holder = new Plots(myocyte, pwm)}
+    if (strcmp($s1,"V")==0) {
+	plot_holder.plot_V()
+    }
+    if (strcmp($s1,"INa")==0) {
+	plot_holder.plot_INa()
+    }
+    if (strcmp($s1,"gNa")==0) {
+	plot_holder.plot_gNa()
+    }
+    if (strcmp($s1,"ICa")==0) {
+	plot_holder.plot_ICa()
+    }
+    if (strcmp($s1,"Nav_states")==0) {
+	plot_holder.plot_INa_states()
+    }
+    if (strcmp($s1,"all")==0) {
+	plot_holder.plot_V()
+	plot_holder.plot_INa()
+	plot_holder.plot_gNa()
+	plot_holder.plot_ICa()
+	plot_holder.plot_INa_states()
+    }
+}
+proc create_myocyte() {
+    $o1 = new Myocyte("rfi_myo")
+    
+    access $o1.cell
+    $o2.set_myocyte($o1)
+    set_ion_conc()
+    // params.save_myocyte()
+    set_env_cond()
+}
+
+proc close_all() {local i
+    if (plot_holder!=nil) {
+	plot_holder.close_all()
+	objref plot_holder
+    }
+}
+
+proc delete_this() {local i
+    if (SEC!=nil) {objref SEC}
+    if (myocyte!=nil) {objref myocyte}
+    if (plot_holder!=nil) {
+	plot_holder.close_all()
+	objref plot_holder
+    }
+    pwm.close(gui.index)    
+}
+
+proc noprot_run() {
+    breakloop = 0
+    if (plot_holder != nil) {plot_holder.erase_all()}
+    if (plot_holder != nil) {
+	sprint(label,"V: mV")
+	if (plot_holder.V_plot != nil) {plot_holder.V_plot.addvar(label,&myocyte.cell.v(0.5),4,1)}
+	sprint(label,"iNa: mA/cm2")
+	if (plot_holder.INa_plot != nil) {plot_holder.INa_plot.addvar(label,&myocyte.cell.ina(0.5),4,1)}
+	sprint(label,"gNa: S/cm2")
+	if (plot_holder.gNa_plot != nil) {plot_holder.gNa_plot.addexpr(label,"noprot_myo.myocyte.cell.g_NAV_withF(0.5) + noprot_myo.myocyte.cell.g_NAV_noF(0.5)",4,1)}
+	sprint(label,"iCa: mA/cm2")
+	if (plot_holder.ICa_plot != nil) {plot_holder.ICa_plot.addvar(label,&myocyte.cell.ica(0.5),4,1)}
+	plot_holder.populate_nav_states(1)
+    }
+    stdinit()
+    run()
+    if (plot_holder != nil) {plot_holder.view_eq_plot()}
+}
+
+
+proc break_loop() {
+    stoprun=1
+    breakloop = 1
+}
+
+endtemplate Noprot

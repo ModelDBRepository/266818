@@ -1,0 +1,49 @@
+begintemplate Myocyte
+public cell, creator, type
+strdef creator, type
+// v_rest = -85 // mV
+create cell
+
+proc init () {
+    create cell
+    if (numarg()==1) {
+	creator = $s1
+    } else {
+	creator = "None"
+    }
+    
+    cell.L = 100 // um
+    cell.diam = 22.34 // um
+    cell.cm = 1 // uF/cm2 
+    cell.nseg = 5
+    
+    // m_area = area(0.5) * 1e-8 // cm2
+    
+    cell {
+	Ra = 100 // MOhm
+	
+	insert Kto_f // :generated_model__fast_transient_outward_potassium_current_0
+	insert Kss // generated_model__non_inactivating_steady_state_potassium_current_0
+	insert Krdr // generated_model__rapid_delayed_rectifier_potassium_current_0
+	insert Ksdr // generated_model__slow_delayed_rectifier_potassium_current_0
+	insert Ksto // generated_model__slow_transient_outward_potassium_current_0
+	insert NAbg // generated_model__sodium_background_current_0
+	insert NaK_pump // generated_model__sodium_potassium_pump_current_0
+	insert Kti // generated_model__time_independent_potassium_current_0
+	insert Kurdr // generated_model__ultra_rapidly_activating_delayed_rectifier_potassium_current_0
+	insert NAV_withF // Wild Type (WT)
+ 	insert NAV_noF // Knock Out (KO)
+	insert Ca_L //
+	insert ITEMP //
+	 
+	
+	celsius = 25 // degC
+	// v_init = v_rest
+	ko = 5.4 // mM
+	ki = 143.720 //mM
+	
+	nao = 140 // mM
+	nai = 14.2371 // mM
+    }
+}
+endtemplate Myocyte

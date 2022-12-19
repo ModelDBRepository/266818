@@ -1,0 +1,157 @@
+// Add SEClamp for Double Step protocol
+/*
+PROTOCOL description:
+amp1 for dur1
+amp2a  for dur2a
+amp2b  for dur2b
+amp2c  for dur2c
+amp3 for dur3
+*/
+myo_monitor = 0
+
+
+amp2a = -30 // mV
+amp2b = -130 // mV
+amp2c = -30 // mV
+dur2a = 15 // ms
+dur2b = 100 // ms
+dur2c = 15 // ms
+printf("Double pulse begin-to-begin time is: %g",dur2a+dur2b)
+access myocites.o[0].cell
+objref SEC
+SEC = new SEClamp(0.5)
+SEC.amp1 = -130 // mV
+SEC.amp2 = amp2a // mV
+SEC.amp3 = -130 // mV
+SEC.dur1 = 100 // ms
+SEC.dur2 = dur2a+dur2b+dur2c // ms
+SEC.dur3 = 1 // ms
+SEC.rs = 0.01 // MOhm
+
+objref xsource, ysource, xdest, ramp
+xdest = new Vector()
+xsource = new Vector(10)
+ysource = new Vector(10)
+
+objref base_values, dur_values
+strdef label
+base_values = new Vector()
+dur_values = new Vector()
+
+base_start = -100
+base_stop = -110
+base_step = -10
+dur_start = 10
+dur_stop = 100
+dur_step = 10
+
+xpanel("Recovery Protocol",0)
+xbutton("Init & Run", "VClamp_run()")
+if (n_cells > 1) {
+    sprint(s,"Myocyte Na state monitor 0-%d",n_cells)
+    xvalue(s,"myo_monitor")
+} else {
+    xlabel("Myocyte Na state monitor only one")
+}  
+xlabel("VC pulses")
+xvalue("Base 1 duration","SEC.dur1")
+xvalue("Pulse 1 duration","dur2a")
+xvalue("Pulse 1 amplitude","amp2a")
+xvalue("Pulse 2 duration","dur2c")
+xvalue("Pulse 2 amplitude","amp2c")
+xvalue("Base 3 duration","SEC.dur3")
+
+xlabel("VC base values")
+xvalue("Base VC start","base_start",1)
+xvalue("Base VC stop","base_stop",1)
+xvalue("Base VC step","base_step",1)
+xlabel("VC Interval values")
+xvalue("Interval VC start","dur_start",1)
+xvalue("Interval VC stop","dur_stop",1)
+xvalue("Interval VC step","dur_step",1)
+xpanel(53,504)
+
+
+	
+proc VClamp_run() {
+    G.erase_all()
+    H.erase_all()
+    I.erase_all()
+    // Na_states.erase_all()
+    print base_start,base_stop,base_step
+    print dur_start,dur_stop,dur_step
+    base_values.indgen(base_start,base_stop,base_step)
+    dur_values.indgen(dur_start,dur_stop,dur_step)
+    for base_idx = 0, base_values.size()-1 {
+	SEC.amp1 = base_values.x[base_idx] // mV
+	SEC.amp3 = base_values.x[base_idx] // mV
+	amp2b = base_values.x[base_idx] // mV
+	for i = 0,n_cells-1 {
+	    sprint(s,"myocites.o[%d].cell.v(0.5)",i)
+	    sprint(label,"V: Base %g mV",base_values.x[base_idx])
+	    G.addvar(label,s,base_idx+2,1)
+	    sprint(s,"myocites.o[%d].cell.ina(0.5)",i)
+	    sprint(label,"iNa: Base %g mV",base_values.x[base_idx])
+	    H.addvar(label,s,base_idx+2,1)
+	    sprint(s,"myocites.o[%d].cell.ica_Ca_L(0.5)",i)
+	    sprint(label,"iCa: Base %g mV",base_values.x[base_idx])
+	    I.addvar(label,s,base_idx+2,1)
+	}
+	// Na_states.addvar("myocites.o[myo_monitor].cell.O_NAV_noF(0.5)",1,4)
+	// Na_states.addvar("myocites.o[myo_monitor].cell.C1_NAV_noF(0.5)",1,2)
+	// Na_states.addvar("myocites.o[myo_monitor].cell.C2_NAV_noF(0.5)",2,2)
+	// Na_states.addvar("myocites.o[myo_monitor].cell.C3_NAV_noF(0.5)",3,2)
+	// Na_states.addvar("myocites.o[myo_monitor].cell.C4_NAV_noF(0.5)",4,2)
+	// Na_states.addvar("myocites.o[myo_monitor].cell.C5_NAV_noF(0.5)",5,2)
+	// Na_states.addvar("myocites.o[myo_monitor].cell.I1_NAV_noF(0.5)",1,1)
+	// Na_states.addvar("myocites.o[myo_monitor].cell.I2_NAV_noF(0.5)",2,1)
+	// Na_states.addvar("myocites.o[myo_monitor].cell.I3_NAV_noF(0.5)",3,1)
+	// Na_states.addvar("myocites.o[myo_monitor].cell.I4_NAV_noF(0.5)",4,1)
+	// Na_states.addvar("myocites.o[myo_monitor].cell.I5_NAV_noF(0.5)",5,1)
+	// Na_states.addvar("myocites.o[myo_monitor].cell.I6_NAV_noF(0.5)",6,1)
+	for dur_idx = 0, dur_values.size()-1 {
+	    dur2b = dur_values.x[dur_idx]
+	    SEC.dur2 = dur2a+dur2b+dur2c // ms
+	    tstop = SEC.dur1 + SEC.dur2 + SEC.dur3
+	    dt = 0.025
+	    xdest.indgen(0,tstop,0.025)
+	    xsource.x[0] = 0
+	    xsource.x[1] = SEC.dur1
+	    xsource.x[2] = xsource.x[1]
+	    xsource.x[3] = xsource.x[2] + dur2a
+	    xsource.x[4] = xsource.x[3]
+	    xsource.x[5] = xsource.x[4] + dur2b
+	    xsource.x[6] = xsource.x[5]
+	    xsource.x[7] = xsource.x[6] + dur2c
+	    xsource.x[8] = xsource.x[7]
+	    xsource.x[9] = xsource.x[8] + SEC.dur3
+	    
+	    // xsource.printf ()
+	    ysource.x[0] = SEC.amp1
+	    ysource.x[1] = SEC.amp1
+	    ysource.x[2] = amp2a
+	    ysource.x[3] = amp2a
+	    ysource.x[4] = amp2b
+	    ysource.x[5] = amp2b
+	    ysource.x[6] = amp2c
+	    ysource.x[7] = amp2c
+	    ysource.x[8] = SEC.amp3
+	    ysource.x[9] = SEC.amp3
+	    ramp = ysource.interpolate(xdest, xsource)
+	    // ramp.line(g, xdest, 3, 0)     
+	    
+	    ramp.play(&SEC.amp2, dt)
+	    v_init = SEC.amp1
+	    init()
+	    run()
+	    G.exec_menu("View = plot")
+	    H.exec_menu("View = plot")
+	    I.exec_menu("View = plot")
+	    // Na_states.exec_menu("View = plot")
+	    ramp.play_remove ()
+	}
+	G.flush()
+	G.exec_menu("View = plot")
+	
+    }
+}

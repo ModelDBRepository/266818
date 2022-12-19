@@ -1,0 +1,224 @@
+begintemplate Prop
+external WindowGroup, WindowGroupItem, nrncontrolmenu, Aggap, prop_myo
+external set_ion_conc, set_env_cond, stdinit, run, tstop
+public myocytes, SEC, V_plot, INa_plot, ICa_plot, INa_states_plot, delete_this
+public gui_create, plot_holder, nav_states, monitor, this
+public gap_dests, gap_sources, plots, electrode_1, electrode_2, electrode_1_VBox, electrode_2_VBox
+objref this, nil, plot_holder, electrode_1, electrode_2, electrode_1_VBox, electrode_2_VBox
+objref myocytes, SEC, xsource, ysource, xdest, ramp, base_values, dur_values
+objref V_plot, INa_plot, ICa_plot, INa_states_plot, pwm, gui
+objref gap_dests, gap_sources, colors
+strdef tmp_string, tmp_string2, filename, label
+strdef protocol_name, figure_name
+
+load_file("electrod.hoc")
+
+
+proc init() {
+    // Arguments: 1 IClamp Amplitude
+    myocytes = new List()
+    gap_dests = new List()
+    gap_sources = new List()
+    n_cells = $3
+    do_plot_equal_view = $4
+    figure_name = $s5
+    create_strand(myocytes, $o1)
+    pwm = $o2
+    monitor = 0
+    elec_create($6)
+    if (numarg() >= 7) {
+	colors = $o7
+    } else {
+	colors = new Vector()
+    }
+    if (numarg() == 8) {
+	n_cells_display = $8
+    } else {
+	n_cells_display = n_cells-11
+    }
+    gui_create()
+}
+
+proc gui_create() {    
+    nrncontrolmenu()
+    sprint(tmp_string,"%s",figure_name)
+    xpanel(tmp_string,0)
+    xbutton("Run", "prop_run()")
+    xbutton("Break", "break_loop()")
+    sprint(tmp_string,"Myocyte Na state monitor 0-%d",n_cells)
+    // sprint(tmp_string2,"%s.monitor",this)
+    // print tmp_string2
+    xpvalue(tmp_string,&monitor,1,"update_graphs()",0,1)
+    xbutton("Plot V", "plots(\"V\",1)")
+    xbutton("Plot INa", "plots(\"INa\")")
+    xbutton("Plot ICa", "plots(\"ICa\")")
+    xbutton("Plot INa States", "plots(\"Nav_states\")")
+    xbutton("Plot All", "plots(\"all\")")
+    xbutton("Close All plots", "close_all()")
+    xbutton("Delete protocol and model","delete_this()")
+    xpanel()
+    tstop = 300
+    gui = new WindowGroupItem(pwm.count()-1, pwm.name(pwm.count()-1))
+}
+
+proc elec_create() {
+    print secname()
+    print "hname()"
+    access myocytes.o[0].cell
+    print secname()
+    
+    // push_section(myocytes.o[0].cell.name())
+    electrode_1 = new Electrode(0)
+    execute("can_locate=1 xloc=0.5 locate(0)", electrode_1)
+    execute("vc.dur[0]=0.1 vc.amp[0]=-65", electrode_1)
+    execute("vc.dur[1]=2.5 vc.amp[1]=10", electrode_1)
+    execute("vc.dur[2]=100 vc.amp[2]=-65", electrode_1)
+    execute("stim.del=100 stim.dur=0.5 stim.amp=30", electrode_1)
+    electrode_1.stim.amp = $1
+    execute("vcsteps=5", electrode_1)
+    execute("samp=stim.amp  store_vclamp() glyph()", electrode_1)
+    electrode_1_VBox = electrode_1.v1
+    electrode_1_VBox.map("I/V Clamp Electrode", 320, 711, 265.92, 412.8)
+    
+    electrode_2 = new Electrode(0)
+    execute("can_locate=1 xloc=0.5 locate(0)", electrode_2)
+    execute("vc.dur[0]=0.1 vc.amp[0]=-65", electrode_2)
+    execute("vc.dur[1]=2.5 vc.amp[1]=10", electrode_2)
+    execute("vc.dur[2]=100 vc.amp[2]=-65", electrode_2)
+    execute("stim.del=200 stim.dur=0.5 stim.amp=30", electrode_2)
+    electrode_2.stim.amp = $1
+    execute("vcsteps=5", electrode_2)
+    execute("samp=stim.amp  store_vclamp() glyph()", electrode_2)
+    electrode_2_VBox = electrode_2.v1
+    electrode_2_VBox.map("I/V Clamp Electrode_2", 599, 713, 265.92, 412.8)
+    // pop_section()
+    
+}
+
+func mod() {
+    return $1-int($1/$2)*$2
+}
+
+proc prop_run() { local c_cnt
+    breakloop = 0
+    if (plot_holder != nil) {
+	plot_holder.erase_all()
+	c_cnt = 0
+	for(i=0; i<=n_cells_display; i=i+5){
+	    sprint(label,"V: myocyte %d (mV)",i+1)
+    	    if (mod(i,10)==0) {color = 4} else {color = i}
+	    if (plot_holder.V_plot != nil) {
+		if (colors.size() > 0) {
+		    plot_holder.V_plot.addvar(label,&myocytes.o[i].cell.v(0.5),colors.x(c_cnt),3)
+		    c_cnt = c_cnt +1
+		} else {
+		    plot_holder.V_plot.addvar(label,&myocytes.o[i].cell.v(0.5),color,1)
+		}
+	    }
+	    sprint(label,"iNa: myocyte %d (mA/cm2)",i+1)
+	    if (plot_holder.INa_plot != nil) {plot_holder.INa_plot.addvar(label,&myocytes.o[i].cell.ina(0.5),color,1)}
+	    sprint(label,"gNa: myocyte %d (S/cm2)", i+1)
+	    sprint(tmp_string,"prop_myo.myocytes.o[%d].cell.g_NAV_withF(0.5) + prop_myo.myocytes.o[%d].cell.g_NAV_noF(0.5)", i ,i)
+	    if (plot_holder.gNa_plot != nil) {plot_holder.gNa_plot.addexpr(label,tmp_string,color,1)}
+	    sprint(label,"iCa: myocyte %d (mA/cm2)",i+1)
+	    if (plot_holder.ICa_plot != nil) {plot_holder.ICa_plot.addvar(label,&myocytes.o[i].cell.ica(0.5),color,1)}
+	}
+	plot_holder.populate_nav_states(1)
+    }
+    stdinit()
+    run()
+    if (plot_holder != nil && do_plot_equal_view) {plot_holder.view_eq_plot()}
+}
+
+proc plots() {
+    if (plot_holder == nil) {plot_holder = new Plots(myocytes.o[monitor], pwm)}
+    if (strcmp($s1,"V")==0) {
+	plot_holder.plot_V($2)
+	plot_holder.V_plot.label(230, 20, figure_name , 1, 1, 1, 1, 1)
+    }
+    if (strcmp($s1,"INa")==0) {
+	plot_holder.plot_INa()
+    }
+    if (strcmp($s1,"ICa")==0) {
+	plot_holder.plot_ICa()
+    }
+    if (strcmp($s1,"Nav_states")==0) {
+	plot_holder.plot_INa_states()
+    }
+    if (strcmp($s1,"all")==0) {
+	plot_holder.plot_V()
+	plot_holder.plot_INa()
+	plot_holder.plot_gNa()
+	plot_holder.plot_ICa()
+	plot_holder.plot_INa_states()
+    }
+}
+
+proc create_strand() {
+    for i = 0,n_cells {
+	$o1.append(new Myocyte("prop_myo"))
+	$o2.set_myocyte($o1.o[i])
+    }
+    
+    for i = 0,n_cells-1 {
+	// print i, i+1
+	// gap_source_i is located on myocyte_i and provides current ot it
+	$o1.o[i].cell {gap_sources.append(new HalfGap(.99))}
+	gap_sources.o[i].g = Aggap
+	// gap_source_i needs to know the voltage of myocyte_i+1
+	setpointer gap_sources.o[i].vgap, $o1.o[i+1].cell.v(0.01)
+        
+	$o1.o[i+1].cell {gap_dests.append(new HalfGap(0.01))}
+	gap_dests.o[i].g = Aggap
+	
+	setpointer gap_dests.o[i].vgap, $o1.o[i].cell.v(.99)
+    }
+    access $o1.o[monitor].cell
+    set_ion_conc()
+    set_env_cond()
+}
+
+proc close_all() {local i
+    if (plot_holder!=nil) {
+	plot_holder.close_all()
+	objref plot_holder
+    }
+}
+
+
+proc delete_this() {local i
+    if (electrode_1!=nil) {objref electrode_1}
+    if (electrode_2!=nil) {objref electrode_2}
+    if (electrode_1_VBox!=nil) {
+	electrode_1_VBox.unmap()
+	objref electrode_1_VBox
+    }
+    if (electrode_2_VBox!=nil) {
+	electrode_2_VBox.unmap()
+	objref electrode_2_VBox
+    }
+    if (SEC!=nil) {objref SEC}
+    if (myocytes!=nil) {
+	myocytes.remove_all()
+	objref myocytes
+    }
+    if (plot_holder!=nil) {
+	plot_holder.close_all()
+	objref plot_holder
+    }
+    // pwm.close(gui.index)    
+}
+
+proc update_graphs() {local i
+    if (plot_holder!=nil) {
+	plot_holder.close_all()
+	objref plot_holder
+    }
+}
+
+proc break_loop() {
+    stoprun=1
+    breakloop = 1
+}
+
+endtemplate Prop

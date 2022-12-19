@@ -1,0 +1,189 @@
+begintemplate V12inact
+external WindowGroup, WindowGroupItem, nrncontrolmenu, v12inact_myo, cvode
+external set_ion_conc, set_env_cond, stdinit, run, tstop
+public myocyte, SEC, V_plot, INa_plot, ICa_plot, INa_states_plot
+public gui_create, plot_holder, nav_states
+public amp_start, amp_stop, amp_step, plots, V12inact_run, ina_peaks, v_steps, V12
+public xsource, ysource, xdest, ramp, base_values, dur_values
+objref this, nil, plot_holder, v12inact_plot, ina_peaks, v_steps, INa_vec, time_vec
+objref myocyte, SEC, xsource, ysource, xdest, ramp, base_values, dur_values
+objref V_plot, INa_plot, ICa_plot, INa_states_plot, pwm, gui
+strdef tmp_string, filename, label
+
+proc init() {
+    create_myocyte(myocyte, $o1)
+    pwm = $o2
+    // Add SEClamp for Double Step protocol
+    /*
+    PROTOCOL description:
+    amp1 for dur1
+    amp2a  for dur2a
+    amp2b  for dur2b
+    amp2c  for dur2c
+    amp3 for dur3
+    */
+    
+    amp_start = -60
+    amp_stop = -150
+    amp_step = -5
+    access myocyte.cell
+    SEC = new SEClamp(0.5)
+    SEC.amp1 = amp_start // mV
+    SEC.amp2 = -30 // mV
+    SEC.amp3 = -30 // mV
+    SEC.dur1 = 80 // ms
+    SEC.dur2 = 20 // ms
+    SEC.dur3 = 10 // ms
+    SEC.rs = 0.0001 // MOhm
+    
+    V12 = 0
+    color = 2
+    
+    ina_peaks = new Vector()
+    v_steps = new Vector()
+    INa_vec = new Vector()
+    time_vec = new Vector()
+    cvode.record(&myocyte.cell.ina(0.5),INa_vec,time_vec)
+    v12inact_plot = new Graph()
+    v12inact_plot.exec_menu("Keep Lines")
+
+}
+
+proc gui_create() {    
+    nrncontrolmenu()
+    xpanel("V1/2 Inactivation Protocol",0)
+    xbutton("Run", "V12inact_run()")
+    xbutton("Break", "break_loop()")
+    xvalue("Base start (mV)","this.amp_start",1,"",0,1)
+    xvalue("Base stop (mV)","this.amp_stop",1,"",0,1)
+    xvalue("Base step (mV)","this.amp_step",1,"",0,1)
+    xvalue("Base dur (ms)","this.SEC.dur1",1,"",0,1)
+    xvalue("Step to (mV)","this.SEC.amp2",1,"",0,1)
+    xvalue("Step dur (ms)","this.SEC.dur2",1,"",0,1)
+    xlabel("V1/2 of activation is:")
+    xvalue("V1/2 (mV)","this.V12",1,"",0,1)
+    xbutton("Plot V", "plots(\"V\")")
+    xbutton("Plot INa", "plots(\"INa\")")
+    xbutton("Plot ICa", "plots(\"ICa\")")
+    xbutton("Plot INa States", "plots(\"Nav_states\")")
+    xbutton("Plot All", "plots(\"all\")")
+    xbutton("Close All plots", "close_all()")
+    xbutton("Delete protocol and model","delete_this()")
+    xpanel()
+    gui = new WindowGroupItem(pwm.count()-1, pwm.name(pwm.count()-1))
+    
+    // xsource.x[0] = 0
+    // xsource.x[1] = SEC.dur1
+    
+}
+
+proc plots() {
+    if (plot_holder == nil) {plot_holder = new Plots(myocyte, pwm)}
+    if (strcmp($s1,"V")==0) {
+	plot_holder.plot_V()
+    }
+    if (strcmp($s1,"INa")==0) {
+	plot_holder.plot_INa()
+    }
+    if (strcmp($s1,"ICa")==0) {
+	plot_holder.plot_ICa()
+    }
+    if (strcmp($s1,"Nav_states")==0) {
+	plot_holder.plot_INa_states()
+    }
+    if (strcmp($s1,"all")==0) {
+	plot_holder.plot_V()
+	plot_holder.plot_INa()
+	plot_holder.plot_gNa()
+	plot_holder.plot_ICa()
+	plot_holder.plot_INa_states()
+    }
+}
+proc create_myocyte() {
+    $o1 = new Myocyte("v12inact_myo")
+    
+    access $o1.cell
+    $o2.set_myocyte($o1)
+    set_ion_conc()
+    // params.save_myocyte()
+    set_env_cond()
+}
+
+proc close_all() {local i
+    if (plot_holder!=nil) {
+	plot_holder.close_all()
+	objref plot_holder
+    }
+}
+
+
+proc delete_this() {local i
+    if (SEC!=nil) {objref SEC}
+    if (myocyte!=nil) {objref myocyte}
+    if (plot_holder!=nil) {
+	plot_holder.close_all()
+	objref plot_holder
+    }
+    pwm.close(gui.index)    
+}
+
+proc V12inact_run() {local amp localobj x_vec, y_vec
+    breakloop = 0
+    ina_peaks = new Vector()
+    v_steps = new Vector()
+    if (plot_holder != nil) {
+	plot_holder.erase_all()
+	sprint(label,"V: mV")
+	if (plot_holder.V_plot != nil) {plot_holder.V_plot.addvar(label,&myocyte.cell.v(0.5),1,1)}
+	sprint(label,"iNa: mA/cm2")
+	if (plot_holder.INa_plot != nil) {plot_holder.INa_plot.addvar(label,&myocyte.cell.ina(0.5),1,1)}
+	sprint(label,"gNa: S/cm2")
+	if (plot_holder.gNa_plot != nil) {plot_holder.gNa_plot.addexpr(label,"ramp_myo.myocyte.cell.g_NAV_withF(0.5) + ramp_myo.myocyte.cell.g_NAV_noF(0.5)",1,1)}
+	sprint(label,"iCa: mA/cm2")
+	if (plot_holder.ICa_plot != nil) {plot_holder.ICa_plot.addvar(label,&myocyte.cell.ica(0.5),1,1)}
+	plot_holder.populate_nav_states(1)
+    }
+    for (amp = amp_start; amp >= amp_stop; amp = amp+amp_step) {
+	if (breakloop) {break}
+    	dt = 0.025
+	tstop = SEC.dur1 + SEC.dur2 + SEC.dur3
+	SEC.amp1 = amp
+	sprint(tmp_string, "v_init = %g",SEC.amp1)
+	execute(tmp_string)
+	stdinit()
+	run()
+    	if (plot_holder != nil) {plot_holder.view_eq_plot()}
+	ina_peaks.append(-INa_vec.min(time_vec.indwhere(">", SEC.dur1),time_vec.indwhere(">=", SEC.dur1+SEC.dur2)))
+	v_steps.append(amp)
+    }
+    ina_peaks.div(ina_peaks.x[ina_peaks.size()-1]).mul(100)
+    x_vec = new Vector()
+    y_vec = new Vector()
+    x_vec.append(40)
+    x_vec.append(50)
+    x_vec.append(60)
+    y_vec.interpolate(x_vec, ina_peaks, v_steps)
+    V12 = y_vec.x[1]
+    
+    if (strcmp(myocyte.type,"withF")==0) {
+	color = 2
+	y_scale = 0.1}
+    if (strcmp(myocyte.type,"noF")==0) {
+	color = 4
+	y_scale = 0.2
+    }
+    ina_peaks.plot(v12inact_plot,v_steps, color, 1)
+    sprint(tmp_string,"%s V1/2 = %3.4g", myocyte.type, V12)
+    print v_steps.max()
+    v12inact_plot.label(v_steps.min()*0.95, ina_peaks.max()*y_scale, tmp_string, 1, 1, 0, 0, color)
+    color +=1
+    v12inact_plot.exec_menu("View = plot")
+    v12inact_plot.exec_menu("Keep Lines")
+}
+
+proc break_loop() {
+    stoprun=1
+    breakloop = 1
+}
+
+endtemplate V12inact

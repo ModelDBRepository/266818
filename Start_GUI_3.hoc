@@ -1,0 +1,536 @@
+if (unix_mac_pc() == 3){
+    xopen("C:/nrn/lib/hoc/noload.hoc")
+}
+
+default_temperature = 37
+sim_temperature = default_temperature
+
+proc set_env_cond() {
+    v_rest = -87 // mV
+    
+    celsius = sim_temperature // degC
+    v_init = v_rest
+}
+
+proc set_ion_conc() {
+    ko = 5.4 // mM
+    ki = 143.720 //mM
+    
+    nao = 140 // mM
+    nai = 14.2371 // mM
+}
+
+n_cells = 110
+Aggap= 772.8e3 // pS at 37 degC
+
+mutate = 0
+objref rfi_myo, nil, noprot_myo
+// Ramp myocyte
+objref ramp_myo, prop_myo, fig4B, fig4C
+objref fig5A, fig5B, fig5G, fig5F
+objref fig6A, fig6B, fig6D, fig6E
+objref v12inact_myo, v12act_myo
+
+// Load NAV states
+load_file("hoc_tools/nav_states.hoc")
+
+load_file("myocyte.hoc")
+load_file("hoc_tools/plots.hoc")
+
+load_file("hoc_tools/colors.hoc")
+load_file("hoc_tools/rfi.hoc")
+load_file("hoc_tools/ramp.hoc")
+load_file("hoc_tools/propagation.hoc")
+load_file("hoc_tools/noprotocol.hoc")
+load_file("hoc_tools/V12_inactivation.hoc")
+load_file("hoc_tools/V12_activation.hoc")
+
+cvode.active(1)
+cvode.use_local_dt(1)
+
+objref pwm
+pwm = new PWManager ()
+
+objref myocytes
+
+// Store parameters
+load_file("hoc_tools/params_template.hoc")
+objref withF_params, noF_params, params
+withF_params = new Params("withF")
+noF_params = new Params("noF")
+
+
+strdef myo_type, myo_name, filename, header
+myo_type = "withF"
+myo_name = myo_type
+
+strdef s,label, cmd, myo_type_label
+objref gap_sources, gap_dests
+gap_sources = new List()
+gap_dests = new List()
+objref current_graph
+
+proc save_myocyte() {
+    sprint(filename, "myo_params_%s.ses", myo_type)
+    sprint(header, "Myo type %s", myo_type)
+    pwm.save(filename, 1, header)
+}
+
+proc update_all() {
+    myo_type = $s1
+    myo_name = myo_type
+    if (strcmp(myo_type,"noF")==0) {myo_name = "noF"}
+    objref params
+    sprint(cmd,"params = %s_params",$s1)
+    execute(cmd)
+    sprint(myo_type_label,"Myocyte model is %s",myo_type)
+
+    if (fig4B != nil) {
+	for i = 0, fig4B.myocytes.count()-1 {
+    	    params.set_myocyte(fig4B.myocytes.o(i))
+	}
+    }
+    if (fig4C != nil) {
+	for i = 0, fig4C.myocytes.count()-1 {
+    	    params.set_myocyte(fig4C.myocytes.o(i))
+	}
+    }
+    if (fig5A != nil) {
+	for i = 0, fig5A.myocytes.count()-1 {
+    	    params.set_myocyte(fig5A.myocytes.o(i))
+	}
+    }
+    if (fig5B != nil) {
+	for i = 0, fig5B.myocytes.count()-1 {
+    	    params.set_myocyte(fig5B.myocytes.o(i))
+	}
+    }
+    if (fig5F != nil) {
+	for i = 0, fig5F.myocytes.count()-1 {
+    	    params.set_myocyte(fig5F.myocytes.o(i))
+	}
+    }
+    if (fig5G != nil) {
+	for i = 0, fig5G.myocytes.count()-1 {
+    	    params.set_myocyte(fig5G.myocytes.o(i))
+	}
+    }
+    if (fig6A != nil) {
+	for i = 0, fig6A.myocytes.count()-1 {
+    	    params.set_myocyte(fig6A.myocytes.o(i))
+	}
+    }
+    if (fig6B != nil) {
+	for i = 0, fig6B.myocytes.count()-1 {
+    	    params.set_myocyte(fig6B.myocytes.o(i))
+	}
+    }
+    if (fig6D != nil) {
+	for i = 0, fig6D.myocytes.count()-1 {
+    	    params.set_myocyte(fig6D.myocytes.o(i))
+	}
+	set_gap_junctions(fig6D)
+    }
+    if (fig6E != nil) {
+	for i = 0, fig6E.myocytes.count()-1 {
+    	    params.set_myocyte(fig6E.myocytes.o(i))
+	}
+	set_gap_junctions(fig6E)
+    }
+    
+    if (rfi_myo != nil) {
+    	params.set_myocyte(rfi_myo.myocyte)
+    }
+
+    if (ramp_myo != nil) {
+    	params.set_myocyte(ramp_myo.myocyte)
+    }
+    if (prop_myo != nil) {
+	for i = 0, prop_myo.myocytes.count()-1 {
+    	    params.set_myocyte(prop_myo.myocytes.o(i))
+	}
+    }
+    if (noprot_myo != nil) {
+    	params.set_myocyte(noprot_myo.myocyte)
+    }
+    if (v12act_myo != nil) {
+    	params.set_myocyte(v12act_myo.myocyte)
+    }
+    if (v12inact_myo != nil) {
+    	params.set_myocyte(v12inact_myo.myocyte)
+    }
+    if (v12act_myo != nil) {
+    	params.set_myocyte(v12act_myo.myocyte)
+    }
+    // params.save_param_names()
+    // params.save_param_values()
+}
+
+proc fig4B_create() {localobj figure_name
+    myocytes = new List()
+    if (fig4B != nil) {objref fig4B}
+    sim_temperature = 37
+    figure_name = new String("Fig4B")
+    Aggap= 772.8e3 // pS at 37 degC
+    fig4B = new Prop(params, pwm, 111, 0, figure_name.s, 30, colors)
+    mutate = 0
+    update_mutation(mutate)
+    fig4B.plots("V",0)
+    fig4B.plot_holder.V_plot.size(190,310,-90,40)
+    fig4B.plot_holder.V_plot.view(190, -90, 120, 130, 385, 14, 624.96, 472.96)
+}
+
+proc fig4C_create() {localobj figure_name
+    myocytes = new List()
+    if (fig4C != nil) {objref fig4C}
+    sim_temperature = 37
+    figure_name = new String("Fig4C")
+    Aggap= 772.8e3 // pS at 37 degC
+    fig4C = new Prop(params, pwm, 111, 0, figure_name.s, 30, colors)
+    mutate = 1
+    update_mutation(mutate)
+    fig4C.plots("V",0)
+    fig4C.plot_holder.V_plot.size(190,310,-90,60)
+    fig4C.plot_holder.V_plot.view(190, -90, 120, 150, 1193, 8, 624.96, 472.96)
+}
+
+proc fig5A_create() { localobj figure_name
+    myocytes = new List()
+    if (fig5A != nil) {objref fig5A}
+    sim_temperature = 37
+    figure_name = new String("Fig5A Fhf2WT gNaV 22%")
+    withF_params.values.x(13) = withF_params.values.x(13) * 0.22
+    withF_params.values.x(14) = withF_params.values.x(14) * 0.22
+    noF_params.values.x(13) = noF_params.values.x(13) * 0.22
+    noF_params.values.x(14) = noF_params.values.x(14) * 0.22
+    mutate = 0
+    update_mutation(mutate)
+    Aggap= 772.8e3 // pS at 37 degC
+    fig5A = new Prop(params, pwm, 111, 0, figure_name.s, 40, colors)
+    fig5A.electrode_1.stim.amp = 40 // nA
+    fig5A.electrode_2.stim.amp = 40 // nA
+    fig5A.plots("V",0)
+    fig5A.plot_holder.V_plot.size(190,310,-90,40)
+    fig5A.plot_holder.V_plot.view(190, -90, 120, 150, 1193, 8, 624.96, 472.96)
+}
+proc fig5B_create() { localobj figure_name
+    myocytes = new List()
+    if (fig5B != nil) {objref fig5B}
+    sim_temperature = 37
+    Aggap= 772.8e3 // pS at 37 degC
+    figure_name = new String("Fig5B Fhf2KO gNaV 68%")
+    withF_params.values.x(13) = withF_params.values.x(13) * 0.68
+    withF_params.values.x(14) = withF_params.values.x(14) * 0.68
+    noF_params.values.x(13) = noF_params.values.x(13) * 0.68
+    noF_params.values.x(14) = noF_params.values.x(14) * 0.68
+    mutate = 1
+    update_mutation(mutate)
+    fig5B = new Prop(params, pwm, 111, 0, figure_name.s, 30, colors)
+    fig5B.electrode_1.stim.amp = 40 // nA
+    fig5B.electrode_2.stim.amp = 40 // nA
+    fig5B.plots("V",0)
+    fig5B.plot_holder.V_plot.size(190,310,-90,40)
+    fig5B.plot_holder.V_plot.view(190, -90, 120, 150, 1193, 8, 624.96, 472.96)
+}
+proc fig5F_create() { localobj figure_name
+    myocytes = new List()
+    if (fig5F != nil) {objref fig5F}
+    sim_temperature = 45
+    Aggap= 772.8e3 // pS at 37 degC
+    figure_name = new String("Fig5F Fhf2WT 45°")
+    fig5F = new Prop(params, pwm, 111, 0, figure_name.s, 40, colors)
+    mutate = 0
+    update_mutation(mutate)
+    fig5F.plots("V",0)
+    fig5F.plot_holder.V_plot.size(190,280,-90,40)
+    fig5F.plot_holder.V_plot.view(190, -90, 90, 130, 1193, 8, 624.96, 472.96)
+}
+proc fig5G_create() { localobj figure_name
+    myocytes = new List()
+    if (fig5G != nil) {objref fig5G}
+    sim_temperature = 41
+    figure_name = new String("Fig5G Fhf2KO 41°")
+    fig5G = new Prop(params, pwm, 111, 0, figure_name.s, 40, colors)
+    mutate = 1
+    update_mutation(mutate)
+    fig5G.electrode_1.stim.amp = 33 // nA
+    fig5G.electrode_2.stim.amp = 33 // nA
+    fig5G.plots("V",0)
+    fig5G.plot_holder.V_plot.size(190,280,-90,40)
+    fig5G.plot_holder.V_plot.view(190, -90, 120, 130, 1193, 8, 624.96, 472.96)
+}
+
+proc fig6A_create() { localobj figure_name
+    myocytes = new List()
+    if (fig6A != nil) {objref fig6A}
+    sim_temperature = default_temperature
+    Aggap= 772.8e3 // pS at 37 degC
+    figure_name = new String("Fig6A Fhf2WT gCaV = 0")
+    fig6A = new Prop(params, pwm, 111, 0, figure_name.s, 30, colors)
+    temp_CaL = withF_params.values.x(11)
+    withF_params.values.x(11) = 0.0
+    noF_params.values.x(11) = 0.0
+    mutate = 0
+    update_mutation(mutate)
+    fig6A.plots("V",0)
+    fig6A.plot_holder.V_plot.size(190,280,-90,40)
+    fig6A.plot_holder.V_plot.view(190, -90, 120, 130, 1193, 8, 624.96, 472.96)
+}
+proc fig6B_create() { localobj figure_name
+    myocytes = new List()
+    if (fig6B != nil) {objref fig6B}
+    sim_temperature = default_temperature
+    Aggap= 772.8e3 // pS at 37 degC
+    figure_name = new String("Fig6B Fhf2KO gCaV 54%")
+    fig6B = new Prop(params, pwm, 111, 0, figure_name.s, 30, colors)
+    withF_params.values.x(11) = withF_params.values.x(11) * 0.54
+    noF_params.values.x(11) = noF_params.values.x(11) * 0.54
+    mutate = 1
+    update_mutation(mutate)
+    fig6B.plots("V",0)
+    fig6B.plot_holder.V_plot.size(190,280,-90,40)
+    fig6B.plot_holder.V_plot.view(190, -90, 120, 130, 1193, 8, 624.96, 472.96)
+}
+proc fig6D_create() { localobj figure_name
+    myocytes = new List()
+    if (fig6D != nil) {objref fig6D}
+    sim_temperature = default_temperature
+    figure_name = new String("Fig6D Fhf2WT Gj 2.1 nS")
+    fig6D = new Prop(params, pwm, 111, 0, figure_name.s, 5, colors, 101)
+    Aggap = 2.1e3 // pS
+    mutate = 0
+    update_mutation(mutate)
+    fig6D.electrode_1.stim.amp = 3.2 // nA
+    fig6D.electrode_2.stim.amp = 3.2 // nA
+    tstop = 1000
+    fig6D.plots("V",0)
+    fig6D.plot_holder.V_plot.size(0,1000,-90,50)
+    fig6D.plot_holder.V_plot.view(0, -90, 1000, 140, 1193, 8, 624.96, 472.96)
+}
+proc fig6E_create() { localobj figure_name
+    myocytes = new List()
+    if (fig6E != nil) {objref fig6E}
+    sim_temperature = default_temperature
+    figure_name = new String("Fig6E Fhf2KO Gj 5.9 nS")
+    fig6E = new Prop(params, pwm, 111, 0, figure_name.s, 5, colors, 22)
+    Aggap = 5.9e3 // pS    
+    mutate = 1
+    update_mutation(mutate)
+    fig6E.electrode_1.stim.amp = 3.2 // nA
+    fig6E.electrode_2.stim.amp = 3.2 // nA
+    tstop = 1000
+    fig6E.plots("V",0)
+    fig6E.plot_holder.V_plot.size(0,1000,-90,40)
+    fig6E.plot_holder.V_plot.view(0, -90, 1000, 130, 1193, 8, 624.96, 472.96)
+}
+
+proc rfi_myo_create() { 
+    if (rfi_myo != nil) {objref rfi_myo}
+    rfi_myo = new RFI(params, pwm)
+    rfi_myo.gui_create()
+}
+proc ramp_myo_create() { 
+    if (ramp_myo != nil) {objref ramp_myo}
+    ramp_myo = new Ramp(params, pwm)
+    ramp_myo.gui_create()
+}
+proc propagation_protocol() {localobj figure_name
+    if (prop_myo != nil) {objref prop_myo}
+    figure_name = new String("Propagation protocol")
+    prop_myo = new Prop(params, pwm, n_cells, 1, figure_name.s, 40, colors)
+}
+proc noprot_myo_create() { 
+    if (noprot_myo != nil) {objref noprot_myo}
+    noprot_myo = new Noprot(params, pwm)
+    noprot_myo.gui_create()
+}
+proc v12inact_myo_create() {
+    if (v12inact_myo != nil) {objref v12inact_myo}
+    v12inact_myo = new V12inact(params, pwm)
+    v12inact_myo.gui_create()
+}
+proc v12act_myo_create() { 
+    if (v12act_myo != nil) {objref v12act_myo}
+    v12act_myo = new V12act(params, pwm)
+    v12act_myo.gui_create()
+}
+
+proc set_gap_junctions() {
+    for i = 0,n_cells-1 {
+	if (numarg() > 0) {
+	    $o1.gap_sources.o[i].g = Aggap
+	    $o1.gap_dests.o[i].g = Aggap
+	    print $o1.gap_sources.o[i].g
+	} else {
+	    if (prop_myo != nil) {
+		prop_myo.gap_sources.o[i].g = Aggap
+		prop_myo.gap_dests.o[i].g = Aggap
+	    }else{
+		Aggap= 772.8e3 // pS at 37 degC
+	    }
+	}
+    }	
+}
+
+proc update_mutation() {
+    // Args: $1==0 -> withF mutation off
+    //       $1==1 -> KO mutation on
+    if ($1==0) {update_all("withF")}
+    if ($1==1) {update_all("noF")}
+}
+
+proc clear_all_instances() {
+    if (fig4B != nil) {
+	fig4B.delete_this()
+    	objref fig4B
+    }
+    if (fig4C != nil) {
+	fig4C.delete_this()
+    	objref fig4C
+    }
+    if (fig5A != nil) {
+	withF_params.values.x(13) = withF_params.values.x(13) / 0.22
+	withF_params.values.x(14) = withF_params.values.x(14) / 0.22
+	noF_params.values.x(13) = noF_params.values.x(13) / 0.22
+	noF_params.values.x(14) = noF_params.values.x(14) / 0.22
+	update_mutation(mutate)
+	fig5A.delete_this()
+    	objref fig5A
+    }
+    if (fig5B != nil) {
+	withF_params.values.x(13) = withF_params.values.x(13) / 0.68
+	withF_params.values.x(14) = withF_params.values.x(14) / 0.68
+	noF_params.values.x(13) = noF_params.values.x(13) / 0.68
+	noF_params.values.x(14) = noF_params.values.x(14) / 0.68
+	update_mutation(mutate)
+	fig5B.delete_this()
+    	objref fig5B
+    }
+    if (fig5F != nil) {
+	fig5F.delete_this()
+    	objref fig5F
+    }
+    if (fig5G != nil) {
+	fig5G.delete_this()
+    	objref fig5G
+    }
+    if (fig6A != nil) {
+	withF_params.values.x(11) = temp_CaL
+	noF_params.values.x(11) = temp_CaL
+	fig6A.delete_this()
+    	objref fig6A
+    }
+    if (fig6B != nil) {
+	withF_params.values.x(11) = withF_params.values.x(11) / 0.54
+	noF_params.values.x(11) = noF_params.values.x(11) / 0.54
+	update_mutation(mutate)
+	fig6B.delete_this()
+    	objref fig6B
+    }
+    if (fig6D != nil) {
+	fig6D.delete_this()
+    	objref fig6D
+    }
+    if (fig6E != nil) {
+	fig6E.delete_this()
+    	objref fig6E
+    }
+    
+    if (rfi_myo != nil) {
+	rfi_myo.delete_this()
+    	objref rfi_myo
+    }
+    
+    if (ramp_myo != nil) {
+	ramp_myo.delete_this()
+    	objref ramp_myo
+    }
+    if (prop_myo != nil) {
+	prop_myo.delete_this()
+    	objref prop_myo
+    }
+    if (noprot_myo != nil) {
+	noprot_myo.delete_this()
+    	objref noprot_myo
+    }
+    if (v12act_myo != nil) {
+	v12act_myo.delete_this()
+    	objref v12act_myo
+    }
+    if (v12inact_myo != nil) {
+	v12inact_myo.delete_this()
+    	objref v12inact_myo
+    }
+    if (v12act_myo != nil) {
+	v12act_myo.delete_this()
+    	objref v12act_myo
+    }    
+}
+
+
+update_all(myo_type)
+set_env_cond()
+
+// Expose parameters
+xpanel("Set model parameters",0)
+for i = 0, params.names.count()-1 {
+    sprint(cmd,"xvalue(\"%s\",\"params.values.x(%d)\",1,\"update_all(myo_type)\")", params.names.o(i).s, i)
+    execute(cmd)
+}
+xpanel(3,105)
+
+// Choose struct by GUI
+xpanel("Set Sim Structure",0)
+xlabel("Choose the number of myocytes in strand to proceed")
+xvalue("Numb. of myocytes in strand","n_cells",1)
+xlabel("Choose the myocyte type (withF or noF) to proceed")
+xstatebutton("Activate KO Mutation",&mutate,"update_mutation(mutate)")
+// xradiobutton("withF", "update_all(\"withF\")",1)
+// xradiobutton("noF", "update_all(\"noF\")",0)
+xlabel("Select the simulation type")
+xbutton("Figure 4B", "fig4B_create()")
+xbutton("Figure 4C", "fig4C_create()")
+xbutton("Figure 5A", "fig5A_create()")
+xbutton("Figure 5B", "fig5B_create()")
+xbutton("Figure 5F", "fig5F_create()")
+xbutton("Figure 5G", "fig5G_create()")
+xbutton("Figure 6A", "fig6A_create()")
+xbutton("Figure 6B", "fig6B_create()")
+xbutton("Figure 6D", "fig6D_create()")
+xbutton("Figure 6E", "fig6E_create()")
+xbutton("Recovery from Inactivation", "rfi_myo_create()")
+xbutton("Ramp", "ramp_myo_create()")
+xbutton("Linear propagation along stran (n_cells >1)", "propagation_protocol()")
+xbutton("Protocol free model", "noprot_myo_create()")
+xbutton("V1/2 inactivation model", "v12inact_myo_create()")
+xbutton("V1/2 activation model", "v12act_myo_create()")
+xbutton("Clear all models", "clear_all_instances()")
+xvarlabel(myo_type_label)
+xvalue("Model temperature","celsius",1)
+xvalue("Gap Junction conductance (pS)","Aggap",1,"set_gap_junctions()")
+xpanel(3,105)
+
+
+// printf("%s\n",nav_states.o(3).state_name.s)
+
+// rfi_myo_create()
+// rfi_myo.man_step_setup(2)
+// rfi_myo.protocol_mode = "manual"
+// rfi_myo.plots("INa")
+// rfi_myo.VClamp_run()
+
+// v12inact_myo_create()
+// v12inact_myo.plots("V")
+// v12inact_myo.plots("INa")
+// update_all("withF")
+// v12inact_myo.V12inact_run()
+// update_all("noF")
+// v12inact_myo.V12inact_run()
+
+// v12act_myo_create()
+// v12act_myo.plots("V")
+// v12act_myo.plots("INa")
+// update_all("withF")
+// v12act_myo.V12act_run()
+// update_all("noF")
+// v12act_myo.V12act_run()

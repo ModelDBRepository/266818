@@ -1,0 +1,362 @@
+begintemplate Manual_steps
+external v_init
+public VC_base, interval_start, interval_stop, interval_step
+
+proc init() {
+    /* Arguments:
+    $1 base
+    $2,3,4: interval start, stop, step
+    */
+    VC_base = $1
+    interval_start = $2
+    interval_stop = $3
+    interval_step = $4
+}
+
+endtemplate Manual_steps
+
+begintemplate RFI
+external WindowGroup, WindowGroupItem, rfi_myo, nrncontrolmenu, cvode
+external set_ion_conc, set_env_cond, stdinit, run, tstop
+public myocyte, SEC, V_plot, INa_plot, ICa_plot, INa_states_plot, VC_sets, man_step_setup, plots
+public VClamp_run, rfi_vec, rfi_list, interval_vec, interval_list
+public gui_create, plot_holder, nav_states, INa_vec, time_vec, protocol_mode
+objref this, nil, plot_holder, INa_vec, time_vec, rfi_list, rfi_vec, interval_list, interval_vec
+objref myocyte, SEC, xsource, ysource, xdest, ramp, base_values, dur_values
+objref V_plot, INa_plot, ICa_plot, INa_states_plot, pwm, gui, VC_sets
+objref rfi_plot
+strdef tmp_string, filename, label, protocol_mode
+
+proc init() {
+    create_myocyte(myocyte, $o1)
+    pwm = $o2
+    
+    INa_vec = new Vector()
+    time_vec = new Vector()
+    rfi_list = new List()
+    interval_list = new List()
+    cvode.record(&myocyte.cell.ina(0.5),INa_vec,time_vec)
+    // Add SEClamp for Double Step protocol
+    /*
+    PROTOCOL description:
+    amp1 for dur1
+    amp2a  for dur2a
+    amp2b  for dur2b
+    amp2c  for dur2c
+    amp3 for dur3
+    */
+    
+    amp2a = -30 // mV
+    amp2b = -130 // mV
+    amp2c = -30 // mV
+    dur2a = 15 // ms
+    dur2b = 100 // ms
+    dur2c = 15 // ms
+    access myocyte.cell
+    SEC = new SEClamp(0.5)
+    SEC.amp1 = -130 // mV
+    SEC.amp2 = amp2a // mV
+    SEC.amp3 = -130 // mV
+    SEC.dur1 = 100 // ms
+    SEC.dur2 = dur2a+dur2b+dur2c // ms
+    SEC.dur3 = 1 // ms
+    SEC.rs = 0.001 // MOhm
+    
+    xdest = new Vector()
+    xsource = new Vector(10)
+    ysource = new Vector(10)
+    
+    base_values = new Vector()
+    dur_values = new Vector()
+    
+    base_start = -100
+    base_stop = -110
+    base_step = -10
+    dur_start = 10
+    dur_stop = 100
+    dur_step = 10
+}
+
+proc gui_create() {
+    nrncontrolmenu()
+    xpanel("Recovery Protocol",0)
+    xbutton("MultiRun", "VClamp_run()")
+    xbutton("Break", "break_loop()")
+    
+    xlabel("VC pulses")
+    xvalue("Base 1 duration","this.SEC.dur1",1,"",0,1)
+    xvalue("Pulse 1 duration","dur2a",1,"",0,1)
+    xvalue("Pulse 1 amplitude","amp2a",1,"",0,1)
+    xvalue("Pulse 2 duration","dur2c",1,"",0,1)
+    xvalue("Pulse 2 amplitude","amp2c",1,"",0,1)
+    xvalue("Base 3 duration","this.SEC.dur3",1,"",0,1)
+    
+    xmenu("Choose protocol setup")
+    xbutton("Regular steps","reg_step_setup()")
+    for i = 0, 15 {
+	sprint(tmp_string,"man_step_setup(%d)",i)
+	sprint(label, " %d Manual steps", i+1)
+	xbutton(label,tmp_string)
+    }
+    xmenu()
+    
+    xbutton("Plot V", "plots(\"V\")")
+    xbutton("Plot INa", "plots(\"INa\")")
+    xbutton("Plot gNa", "plots(\"gNa\")")
+    xbutton("Plot ICa", "plots(\"ICa\")")
+    xbutton("Plot INa States", "plots(\"Nav_states\")")
+    xbutton("Plot All", "plots(\"all\")")
+    xbutton("Close All plots", "close_all()")
+    // xbutton("Hide All", "hide_all(\"myocyte\",myocyte_V_plot,myocyte_INa_plot,myocyte_ICa_plot,myocyte_INa_states_plot)")
+    // xbutton("Show All", "show_all(\"myocyte\",myocyte_V_plot,myocyte_INa_plot,myocyte_ICa_plot,myocyte_INa_states_plot)")
+    xbutton("Delete protocol and model","delete_this()")
+    xpanel()
+    gui = new WindowGroupItem(pwm.count()-1, pwm.name(pwm.count()-1))
+}
+
+proc reg_step_setup() {
+    protocol_mode = "regular"
+    xpanel("Regular steps setup")
+    xlabel("VC base values")
+    xvalue("Base VC start","base_start",1,"",0,1)
+    xvalue("Base VC stop","base_stop",1,"",0,1)
+    xvalue("Base VC step","base_step",1,"",0,1)
+    xlabel("VC Interval values")
+    xvalue("Interval VC start","dur_start",1,"",0,1)
+    xvalue("Interval VC stop","dur_stop",1,"",0,1)
+    xvalue("Interval VC step","dur_step",1,"",0,1)
+    xpanel()
+}
+
+proc man_step_setup() {local i
+    protocol_mode = "manual"
+    VC_sets = new List()
+    xpanel("Manual steps setup")
+    for i = 0, $1 {
+	if (i==0) {VC_sets.append(new Manual_steps(-135,1,40,1))}
+	if (i==1) {VC_sets.append(new Manual_steps(-95,5,200,5))}
+	if (i==2) {VC_sets.append(new Manual_steps(-83,10,400,10))}
+	if (i>2) {VC_sets.append(new Manual_steps(0,0,0,0))}
+	sprint(tmp_string,"this.VC_sets.o(%d).VC_base",VC_sets.count()-1)
+	xvalue("VC base",tmp_string,1,"",0,1)
+	sprint(tmp_string,"this.VC_sets.o(%d).interval_start",VC_sets.count()-1)
+	xvalue("Interval_start",tmp_string,1,"",0,1)
+	sprint(tmp_string,"this.VC_sets.o(%d).interval_stop",VC_sets.count()-1)
+	xvalue("Interval_stop",tmp_string,1,"",0,1)
+	sprint(tmp_string,"this.VC_sets.o(%d).interval_step",VC_sets.count()-1)
+	xvalue("Interval_step",tmp_string,1,"",0,1)
+    }
+    xpanel()
+}
+
+proc plots() {
+    if (plot_holder == nil) {plot_holder = new Plots(myocyte, pwm)}
+    if (strcmp($s1,"V")==0) {
+	plot_holder.plot_V()
+    }
+    if (strcmp($s1,"INa")==0) {
+	plot_holder.plot_INa()
+    }
+    if (strcmp($s1,"gNa")==0) {
+	plot_holder.plot_gNa()
+    }
+    if (strcmp($s1,"ICa")==0) {
+	plot_holder.plot_ICa()
+    }
+    if (strcmp($s1,"Nav_states")==0) {
+	plot_holder.plot_INa_states()
+    }
+    if (strcmp($s1,"all")==0) {
+	plot_holder.plot_V()
+	plot_holder.plot_INa()
+	plot_holder.plot_gNa()
+	plot_holder.plot_ICa()
+	plot_holder.plot_INa_states()
+    }
+}
+proc create_myocyte() {
+    $o1 = new Myocyte("rfi_myo")
+    
+    access $o1.cell
+    $o2.set_myocyte($o1)
+    set_ion_conc()
+    // params.save_myocyte()
+    set_env_cond()
+}
+
+proc close_all() {local i
+    if (plot_holder!=nil) {
+	plot_holder.close_all()
+	objref plot_holder
+    }
+}
+
+proc delete_this() {local i
+    if (SEC!=nil) {objref SEC}
+    if (myocyte!=nil) {objref myocyte}
+    if (plot_holder!=nil) {
+	plot_holder.close_all()
+	objref plot_holder
+    }
+    pwm.close(gui.index)
+}
+
+proc VClamp_run() {
+    if (strcmp(protocol_mode,"regular")==0) {VClamp_run_regular()}
+    if (strcmp(protocol_mode,"manual")==0) {VClamp_run_manual()}
+    
+}
+
+proc VClamp_run_regular() {
+    breakloop = 0
+    if (plot_holder != nil) {plot_holder.erase_all()}
+    base_values.indgen(base_start,base_stop,base_step)
+    dur_values.indgen(dur_start,dur_stop,dur_step)
+    for base_idx = 0, base_values.size()-1 {
+    	SEC.amp1 = base_values.x[base_idx] // mV
+    	SEC.amp3 = base_values.x[base_idx] // mV
+    	amp2b = base_values.x[base_idx] // mV
+	if (plot_holder != nil) {
+	    sprint(label,"V: mV start at %d (mV)", SEC.amp1)
+	    if (plot_holder.V_plot != nil) {plot_holder.V_plot.addvar(label,&myocyte.cell.v(0.5),base_idx+4,1)}
+	    sprint(label,"iNa: mA/cm2 start at %d (mV)", SEC.amp1)
+	    if (plot_holder.INa_plot != nil) {plot_holder.INa_plot.addvar(label,&myocyte.cell.ina(0.5),base_idx+4,1)}
+	    sprint(label,"gNa: S/cm2  start at %d (mV)", SEC.amp1)
+	    if (plot_holder.gNa_plot != nil) {plot_holder.gNa_plot.addexpr(label,"rfi_myo.myocyte.cell.g_NAV_withF(0.5) + rfi_myo.myocyte.cell.g_NAV_noF(0.5)",base_idx+4,1)}
+	    sprint(label,"iCa: mA/cm2  start at %d (mV)", SEC.amp1)
+	    if (plot_holder.ICa_plot != nil) {plot_holder.ICa_plot.addvar(label,&myocyte.cell.ica(0.5),base_idx+4,1)}
+	    plot_holder.populate_nav_states(1)
+	}
+    	for dur_idx = 0, dur_values.size()-1 {
+	    if (breakloop) {break}
+    	    dur2b = dur_values.x[dur_idx]
+    	    SEC.dur2 = dur2a+dur2b+dur2c // ms
+    	    tstop = SEC.dur1 + SEC.dur2 + SEC.dur3
+    	    dt = 0.025
+    	    xdest.indgen(0,tstop,0.025)
+    	    xsource.x[0] = 0
+    	    xsource.x[1] = SEC.dur1
+    	    xsource.x[2] = xsource.x[1]
+    	    xsource.x[3] = xsource.x[2] + dur2a
+    	    xsource.x[4] = xsource.x[3]
+    	    xsource.x[5] = xsource.x[4] + dur2b
+    	    xsource.x[6] = xsource.x[5]
+    	    xsource.x[7] = xsource.x[6] + dur2c
+    	    xsource.x[8] = xsource.x[7]
+    	    xsource.x[9] = xsource.x[8] + SEC.dur3
+	    
+    	    // xsource.printf ()
+    	    ysource.x[0] = SEC.amp1
+    	    ysource.x[1] = SEC.amp1
+    	    ysource.x[2] = amp2a
+    	    ysource.x[3] = amp2a
+    	    ysource.x[4] = amp2b
+    	    ysource.x[5] = amp2b
+    	    ysource.x[6] = amp2c
+    	    ysource.x[7] = amp2c
+    	    ysource.x[8] = SEC.amp3
+    	    ysource.x[9] = SEC.amp3
+    	    ramp = ysource.interpolate(xdest, xsource)
+    	    // ramp.line(g, xdest, 3, 0)     
+	    
+    	    ramp.play(&SEC.amp2, dt)
+	    sprint(tmp_string, "v_init = %g",SEC.amp1)
+	    execute(tmp_string)
+    	    // v_init = SEC.amp1
+	    stdinit()
+    	    run()
+    	    if (plot_holder != nil) {plot_holder.view_eq_plot()}
+    	    ramp.play_remove ()
+    	}	
+    }
+}
+
+proc VClamp_run_manual() {localobj VC_set
+    breakloop = 0
+    if (plot_holder != nil) {plot_holder.erase_all()}
+    rfi_plot = new Graph()
+    rfi_plot.exec_menu("Keep Lines")
+    for base_idx = 0, VC_sets.count()-1 {
+	VC_set = VC_sets.o(base_idx)
+	rfi_list.append(new Vector())
+	interval_list.append(new Vector())
+	rfi_vec = rfi_list.o(rfi_list.count()-1)
+	rfi_vec.append(0)
+	interval_vec = interval_list.o(interval_list.count()-1)
+	interval_vec.append(0)
+	if (VC_set.interval_start!=0) {
+	    dur_values.indgen(VC_set.interval_start,VC_set.interval_stop,VC_set.interval_step)
+    	    SEC.amp1 = VC_set.VC_base // mV
+    	    SEC.amp3 = VC_set.VC_base // mV
+    	    amp2b = VC_set.VC_base // mV
+	    if (plot_holder != nil) {
+		sprint(label,"V: mV start at %d (mV)", SEC.amp1)
+		if (plot_holder.V_plot != nil) {plot_holder.V_plot.addvar(label,&myocyte.cell.v(0.5),base_idx+4,1)}
+		sprint(label,"iNa: mA/cm2 start at %d (mV)", SEC.amp1)
+		if (plot_holder.INa_plot != nil) {plot_holder.INa_plot.addvar(label,&myocyte.cell.ina(0.5),base_idx+4,1)}
+		sprint(label,"gNa: S/cm2  start at %d (mV)", SEC.amp1)
+		if (plot_holder.gNa_plot != nil) {plot_holder.gNa_plot.addexpr(label,"rfi_myo.myocyte.cell.g_NAV_withF(0.5) + rfi_myo.myocyte.cell.g_NAV_noF(0.5)",base_idx+4,1)}
+		sprint(label,"iCa: mA/cm2  start at %d (mV)", SEC.amp1)
+		if (plot_holder.ICa_plot != nil) {plot_holder.ICa_plot.addvar(label,&myocyte.cell.ica(0.5),base_idx+4,1)}
+		plot_holder.populate_nav_states(1)
+	    }
+    	    for dur_idx = 0, dur_values.size()-1 {
+		if (breakloop) {break}
+    		dur2b = dur_values.x[dur_idx]
+    		SEC.dur2 = dur2a+dur2b+dur2c // ms
+    		tstop = SEC.dur1 + SEC.dur2 + SEC.dur3
+    		dt = 0.025
+    		xdest.indgen(0,tstop,0.025)
+    		xsource.x[0] = 0
+    		xsource.x[1] = SEC.dur1
+    		xsource.x[2] = xsource.x[1] // first up
+    		xsource.x[3] = xsource.x[2] + dur2a
+    		xsource.x[4] = xsource.x[3] // first down
+    		xsource.x[5] = xsource.x[4] + dur2b
+    		xsource.x[6] = xsource.x[5] // second up
+    		xsource.x[7] = xsource.x[6] + dur2c
+    		xsource.x[8] = xsource.x[7] // second down
+    		xsource.x[9] = xsource.x[8] + SEC.dur3
+		
+    		// xsource.printf ()
+    		ysource.x[0] = SEC.amp1
+    		ysource.x[1] = SEC.amp1
+    		ysource.x[2] = amp2a
+    		ysource.x[3] = amp2a
+    		ysource.x[4] = amp2b
+    		ysource.x[5] = amp2b
+    		ysource.x[6] = amp2c
+    		ysource.x[7] = amp2c
+    		ysource.x[8] = SEC.amp3
+    		ysource.x[9] = SEC.amp3
+    		ramp = ysource.interpolate(xdest, xsource)
+    		// ramp.line(g, xdest, 3, 0)     
+		
+    		ramp.play(&SEC.amp2, dt)
+		sprint(tmp_string, "v_init = %g",SEC.amp1)
+		execute(tmp_string)
+    		stdinit()
+    		run()
+    		if (plot_holder != nil) {plot_holder.view_eq_plot()}
+    		ramp.play_remove ()
+		// 1st up time: xsource.x[2] xsource.x[4]
+		peak1 = -INa_vec.min(time_vec.indwhere(">", xsource.x[2]),time_vec.indwhere(">", xsource.x[4]))
+		peak2 = -INa_vec.min(time_vec.indwhere(">", xsource.x[5]),time_vec.indwhere(">", xsource.x[7]))
+		printf("%g\t%g\n", peak1, peak2)
+		rfi_vec.append(peak2/peak1*100)
+		interval_vec.append(dur2b)
+    	    }	
+	}
+	rfi_list.o(base_idx).plot(rfi_plot,interval_list.o(base_idx), base_idx+1, 1)
+	rfi_plot.exec_menu("View = plot")
+	rfi_plot.exec_menu("Keep Lines")	    
+    }
+}
+
+
+proc break_loop() {
+    stoprun=1
+    breakloop = 1
+}
+
+endtemplate RFI

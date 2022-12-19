@@ -1,0 +1,278 @@
+begintemplate Plots
+external nav_states, graphList, WindowGroupItem
+public plot_V, plot_INa, plot_gNa, plot_INa_states, plot_ICa, view_eq_plot
+public V_plot, gNa_plot, INa_plot, ICa_plot, INa_states_plot, addvar, erase_all, close_all
+public plot_list, glist, gobj, populate_nav_states
+objref V_plot, INa_plot, gNa_plot, ICa_plot, INa_states_plot
+objref myo_model, this, nil, pwm, plot_list
+objref gobj, current_graph, xline, yline
+strdef cmd, label, s
+
+proc init() {
+    myo_model = $o1
+    pwm = $o2
+    plot_list = new List()
+}
+
+func mod() {
+    return $1-int($1/$2)*$2
+}
+
+// Graphs
+proc plot_V() {
+    // Args: $1 display, $s2 (optional)
+    V_plot = new Graph(0)
+    if ($1==1) {
+	V_plot.size(0,500,-140,50)
+	V_plot.view(0, -140, 500, 140, 385, 14, 624.96, 472.96)
+    }
+    
+    // V_plot.addvar("V recovery protocol",&myo_model.cell.v(0.5),4,3, 0.769278, 0.855345, 2)
+    // }
+    // if (strcmp($s2,"ramp_myo")==0) {
+    // 	V_plot.addvar("V ramp protocol","ramp_myo.cell.v(0.5)",4,3, 0.769278, 0.855345, 2)
+    // }
+    // if (strcmp($s2,"strand")==0) {
+    // 	for i = 0,n_cells-1 {
+    // 	    sprint(label,"V myocite %d",i)
+    // 	    if (mod(i,10)==0) {color = 4} else {color = i}
+    // 	    sprint(s,"myocites.o[%d].cell.v(0.5)",i)
+    // 	    V_plot.addvar(label,s,color,3)
+    // 	}
+    // }
+    V_plot.flush()
+    graphList[0].append(V_plot)
+    V_plot.exec_menu("Keep Lines")
+    plot_list.append(new WindowGroupItem(pwm.count()-1, pwm.name(pwm.count()-1)))
+    gobj = pwm.group(pwm.count()-1, gobj)
+    // V_plot.menu_action("Save to File", "V_plot.save_lines(V_plot,\"temp.eps\")")
+    // V_plot.menu_action("Print File", "V_plot.printfile(\"temp.eps\")")
+}
+
+proc plot_INa() {
+    INa_plot = new Graph(0)
+    INa_plot.size(0,500,-140,0)
+    INa_plot.view(0, -140, 500, 140, 1058, 12, 624.96, 472.96)
+    // if (strcmp($s2,"rfi_myo")==0) {
+    // 	INa_plot.addvar("INa recovery protocol","rfi_myo.cell.ina(0.5)",4,3, 0.746237, 0.861434, 2)
+    // }
+    // if (strcmp($s2,"ramp_myo")==0) {
+    // 	INa_plot.addvar("INa ramp protocol","ramp_myo.cell.ina(0.5)",4,3, 0.746237, 0.861434, 2)
+    // }
+    // if (strcmp($s2,"strand")==0) {
+    // 	for i = 0,n_cells-1 {
+    // 	    sprint(label,"INa myocite %d",i)
+    // 	    if (mod(i,10)==0) {color = 4} else {color = i}
+    // 	    sprint(s,"myocites.o[%d].cell.ina(0.5)",i)
+    // 	    INa_plot.addvar(label,s,color,3)
+    // 	}
+    // }
+    INa_plot.flush()
+    graphList[0].append(INa_plot)
+    INa_plot.exec_menu("Keep Lines")
+    plot_list.append(new WindowGroupItem(pwm.count()-1, pwm.name(pwm.count()-1)))
+}
+
+proc plot_gNa() {
+    gNa_plot = new Graph(0)
+    gNa_plot.view(0, 0, 180, 0.016, 380, 616, 624.96, 472.96)
+    gNa_plot.flush()
+    graphList[0].append(gNa_plot)
+    gNa_plot.exec_menu("Keep Lines")
+    plot_list.append(new WindowGroupItem(pwm.count()-1, pwm.name(pwm.count()-1)))
+}
+
+proc plot_ICa() {
+    ICa_plot = new Graph(0)
+    ICa_plot.size(0,500,-140,0)
+    ICa_plot.view(0, -140, 500, 140, 1104, 510, 624.96, 472.96)
+    // if (strcmp($s2,"rfi_myo")==0) {
+    // 	ICa_plot.addvar("ICa recovery protocol","rfi_myo.cell.ica(0.5)",4,3, 0.7447, 0.859405, 2)
+    // }
+    // if (strcmp($s2,"ramp_myo")==0) {
+    // 	ICa_plot.addvar("ICa ramp protocol","ramp_myo.cell.ica(0.5)",4,3, 0.7447, 0.859405, 2)
+    // }
+    // if (strcmp($s2,"strand")==0) {
+    // 	for i = 0,n_cells-1 {
+    // 	    sprint(label,"ICa myocite %d",i)
+    // 	    if (mod(i,10)==0) {color = 4} else {color = i}
+    // 	    sprint(s,"myocites.o[%d].cell.ica(0.5)",i)
+    // 	    ICa_plot.addvar(label,s,color,3)
+    // 	}
+    // }
+    ICa_plot.flush()
+    graphList[0].append(ICa_plot)
+    ICa_plot.exec_menu("Keep Lines")
+    plot_list.append(new WindowGroupItem(pwm.count()-1, pwm.name(pwm.count()-1)))
+}
+
+proc plot_INa_states() {local i
+    if (INa_states_plot==nil) {INa_states_plot = new List()}
+    if (INa_states_plot!=nil) {
+	if (INa_states_plot.count() > 0) {
+	    INa_states_plot.remove_all()	
+	}}
+    if (INa_states_plot!=nil) {objref current_graph}
+    for i = 0, nav_states.count()-1 {
+    	INa_states_plot.append(new Graph(0))
+    	current_graph = INa_states_plot.o(i)
+	
+    	current_graph.size(0,200,-0.01,0.79)
+    	sprint(cmd,"current_graph.%s", nav_states.o(i).view.s)
+    	execute(cmd, this)
+    }
+    // populate_nav_states($o1,$s1,2)
+}
+
+proc populate_nav_states() {
+    if (INa_states_plot !=nil) {
+	for i = 0, nav_states.count()-1 {
+	    current_graph = INa_states_plot.o(i)
+	    if (strcmp(myo_model.creator,"rfi_myo")==0) {
+    		sprint(label,"Recovery Na %s",nav_states.o(i).state_name.s)
+		sprint(s,"myo_model.cell.%s_NAV_noF(0.5)",nav_states.o(i).state_name.s)
+    		if (mod(i,10)==0) {color = 4} else {color = i}
+		sprint(cmd,"current_graph.addvar(label,&%s,%d,%d, nav_states.o(%d).label_loc.x[0], nav_states.o(%d).label_loc.x[1], 2)",s, color, $1, i, i, i)
+		execute(cmd, this)
+	    }
+	    if (strcmp(myo_model.creator,"ramp_myo")==0) {
+    		sprint(label,"Recovery Na %s",nav_states.o(i).state_name.s)
+		sprint(s,"myo_model.cell.%s_NAV_noF(0.5)",nav_states.o(i).state_name.s)
+    		if (mod(i,10)==0) {color = 4} else {color = i}
+		sprint(cmd,"current_graph.addvar(label,&%s,%d,%d, nav_states.o(%d).label_loc.x[0], nav_states.o(%d).label_loc.x[1], 2)",s, color, $1, i, i, i)
+		execute(cmd, this)
+	    }
+	    if (strcmp(myo_model.creator,"prop_myo")==0) {
+    		sprint(label,"Recovery Na %s",nav_states.o(i).state_name.s)
+		sprint(s,"myo_model.cell.%s_NAV_noF(0.5)",nav_states.o(i).state_name.s)
+    		if (mod(i,10)==0) {color = 4} else {color = i}
+		sprint(cmd,"current_graph.addvar(label,&%s,%d,%d, nav_states.o(%d).label_loc.x[0], nav_states.o(%d).label_loc.x[1], 2)",s, color, $1, i, i, i)
+		execute(cmd, this)
+	    }
+	    // if (strcmp($s2,"ramp_myo")==0) {
+    	    //     sprint(label,"Ramp INa %s %s",nav_states.o(i).state_name.s,myo_type)
+	    //     sprint(s,"ramp_myo.cell.%s_NAV_%s(0.5)",nav_states.o(i).state_name.s,myo_name)
+    	    //     if (mod(i,10)==0) {color = 4} else {color = i}
+    	    //     current_graph.addvar(label,s,color,nav_states.o(i).call_count, nav_states.o(i).label_loc.x[0], nav_states.o(i).label_loc.x[1], $3)
+	    // }    
+	    // if (strcmp($s2,"strand")==0) {
+    	    //     sprint(label,"Propagation INa %s %s",nav_states.o(i).state_name.s,myo_type)
+	    //     sprint(s,"myocites.o[%d].cell.%s_NAV_%s(0.5)",$3,nav_states.o(i).state_name.s,myo_name)
+    	    //     if (mod(i,10)==0) {color = 4} else {color = i}
+    	    //     current_graph.addvar(label,s,color,nav_states.o(i).call_count, nav_states.o(i).label_loc.x[0], nav_states.o(i).label_loc.x[1], $3)
+	    // }    
+	    current_graph.flush()
+	    graphList[0].append(current_graph)
+	    current_graph.exec_menu("Keep Lines")
+	}
+    }
+}
+
+// proc hide_nav_states() {local i
+//     for i = 0, $o1.count()-1 {
+// 	$o1.o(i).hide()
+//     }
+// }
+
+// proc show_nav_states() {local i
+//     for i = 0, nav_states.count()-1 {
+// 	current_graph = $o1.o(i)
+// 	// current_graph.size(0,200,-0.01,0.79)
+// 	sprint(cmd,"current_graph.%s", nav_states.o(i).view.s)
+// 	execute(cmd)
+//     }
+// }
+
+// func mod() {
+//     return $1-int($1/$2)*$2
+// }
+
+
+// proc plot_all() { 
+//     plot_V($o2,$s1)
+//     plot_INa($o3,$s1)
+//     plot_ICa($o4,$s1)
+//     plot_INa_states($o5,$s1)
+// }
+
+// proc hide_all() { 
+//     // plot_V($o2,$s1)
+//     // plot_INa($o3,$s1)
+//     // plot_ICa($o4,$s1)
+//     hide_nav_states($o5,$s1)
+// }
+
+// proc show_all() { 
+//     // plot_V($o2,$s1)
+//     // plot_INa($o3,$s1)
+//     // plot_ICa($o4,$s1)
+//     show_nav_states($o5,$s1)
+// }
+
+proc view_eq_plot() {
+    if (V_plot != nil) {V_plot.exec_menu("View = plot")}
+    if (INa_plot != nil) {INa_plot.exec_menu("View = plot")}
+    // if (INa_plot != nil) {save_lines(INa_plot)}
+    if (gNa_plot != nil) {gNa_plot.exec_menu("View = plot")}
+    if (ICa_plot != nil) {ICa_plot.exec_menu("View = plot")}
+    if (INa_states_plot != nil) {
+    	for i =0, INa_states_plot.count()-1 {
+    	INa_states_plot.o(i).exec_menu("View = plot")}
+    }
+    // Na_states.exec_menu("View = plot")
+}
+
+// proc addvar() {
+//     if (V_plot != nil) {V_plot.addvar($s1,&myo_model.cell.v(0.5),$2,2, 0.769278, 0.855345,2)}
+//     // if (INa_plot != nil) {INa_plot.exec_menu("View = plot")}
+//     // if (ICa_plot != nil) {ICa_plot.exec_menu("View = plot")}
+//     // if (INa_states_plot != nil) {
+//     // 	for i =0, INa_states_plot.count()-1 {
+//     // 	INa_states_plot.o(i).exec_menu("View = plot")}
+//     // }
+//     // Na_states.exec_menu("View = plot")
+
+// }
+
+proc close_all() {
+    if (V_plot != nil) {V_plot.unmap()}
+    if (INa_plot != nil) {INa_plot.unmap()}
+    if (gNa_plot != nil) {gNa_plot.unmap()}
+    if (ICa_plot != nil) {ICa_plot.unmap()}
+    if (INa_states_plot != nil) {
+    	for i =0, INa_states_plot.count()-1 {
+    	INa_states_plot.o(i).unmap()}
+    }
+}
+proc erase_all() {
+    if (V_plot != nil) {V_plot.erase_all()}
+    if (INa_plot != nil) {INa_plot.erase_all()}
+    if (gNa_plot != nil) {gNa_plot.erase_all()}
+    if (ICa_plot != nil) {ICa_plot.erase_all()}
+    if (INa_states_plot != nil) {
+    	for i =0, INa_states_plot.count()-1 {
+    	INa_states_plot.o(i).erase_all()}
+    }
+    
+}
+
+proc save_lines() {local i,j localobj xvec, yvec,xline,yline
+    print "Rexecute for"
+    xline = new List()
+    yline = new List()
+    xvec = new Vector()
+    yvec = new Vector()
+    i=-1
+    i = $o1.getline(i, xvec, yvec)
+    for (j=0 ; (i != -1) ; j+=1 ) {
+	// xvec and yvec contain the line with Graph internal index i.
+	// and can be associated with the sequential index j.
+	print j, i, yvec.label, xvec.size()
+	// xline.append(xvec.c)
+	// yline.append(yvec.cl) // clone label as well
+	// print yline.count()
+	i = $o1.getline(i, xvec, yvec)
+    }
+}
+
+endtemplate Plots
