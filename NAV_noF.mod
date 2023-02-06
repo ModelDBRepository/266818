@@ -8,7 +8,7 @@ NEURON {
 	SUFFIX NAV_noF
 	USEION na READ ena WRITE ina
 	RANGE gnabar, ina, g, Oapp, Capp, Iapp
-	RANGE alfa, beta, gamma, delta, Con, Coff, Oon, Ooff
+	RANGE gamma, delta, Con, Coff, Oon, Ooff
 	RANGE Aalfa, Valfa, Abeta, Vbeta, Agamma, Adelta, ACon, ACoff, AOon, AOoff, Vshift
 	RANGE n1, n2, n3, n4, n5, n6, s1, s2, s3, s4, s5, s6, V_threshold, use_threshold
 }

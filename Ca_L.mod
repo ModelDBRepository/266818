@@ -8,7 +8,7 @@ NEURON {
 	SUFFIX Ca_L
 	USEION ca READ eca WRITE ica
 	RANGE gcabar, ica, g
-	RANGE alfa, beta, gamma, delta, Con, Coff, Oon, Ooff
+	RANGE gamma, delta, Con, Coff, Oon, Ooff
 	RANGE Aalfa, Valfa, Abeta, Vbeta, Agamma, Adelta, ACon, ACoff, AOon, AOoff, Vshift
 	RANGE n1, n2
 }
